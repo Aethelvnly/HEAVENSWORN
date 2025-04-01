@@ -105,7 +105,7 @@ function AbilityManager:removeAbility(slot)
 		-- Cancel any ongoing cooldown
 		if self.cooldowns[slot] then
 			self:_clearCooldown(slot)
-		}
+		end
 		
 		AbilityEvents.AbilityRemoved:Fire(self.playerId, slot, oldAbility)
 		return true

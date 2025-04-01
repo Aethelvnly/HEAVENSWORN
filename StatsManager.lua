@@ -10,12 +10,18 @@ local DEFAULT_STATS = {
 	stamina = 100,
 	maxStamina = 100,
 	strength = 10,
-	speed = 16,
+	attackSpeed = 1, -- Default attack speed multiplier
+	movementSpeed = 16,
 	defense = 0,
-	resistance = 0
+	resistance = 0,
+	potency = 1,     -- Default potency multiplier (1 means no change)
+	healthRegenRate = 0,
+	staminaRegenRate = 0,
+	staminaBurst = 0,
+	magicProficiency = 0
 }
 
--- Helper function for deep copying a table
+-- Helper function for deep copying a table (same as before)
 local function deepCopy(original)
 	local copy = {}
 	for key, value in pairs(original) do
@@ -46,13 +52,13 @@ function StatsManager.new(centralData)
 	self.baseStats = deepCopy(DEFAULT_STATS)
 	self.currentStats = deepCopy(DEFAULT_STATS)
 
-	-- Cache for optimization
+	-- Cache for optimization (you can use this later if needed)
 	self._cache = {}
 
 	return self
 end
 
--- Apply modifiers to stats
+-- Apply modifiers to stats (same as before)
 function StatsManager:_applyModifiers(stats, modifiers, add)
 	local factor = add and 1 or -1
 
@@ -74,7 +80,7 @@ function StatsManager:_applyModifiers(stats, modifiers, add)
 	return stats
 end
 
--- Calculate specific affected stats
+-- Calculate specific affected stats (modified to include all stats)
 function StatsManager:recalculateAffectedStats(affectedSources)
 	local oldStats = table.clone(self.currentStats)
 	local newCalculatedStats = deepCopy(self.baseStats)
@@ -90,9 +96,7 @@ function StatsManager:recalculateAffectedStats(affectedSources)
 
 	-- Apply aspect passives if aspect was affected
 	if affectedSources.aspect then
-		local aspect = self.centralData.aspects:getAspect()
 		local aspectPassives = self.centralData.aspects:getAspectPassives()
-
 		if aspectPassives then
 			self:_applyModifiers(newCalculatedStats, aspectPassives, true)
 		end
@@ -100,9 +104,7 @@ function StatsManager:recalculateAffectedStats(affectedSources)
 
 	-- Apply sub-aspect passives if sub-aspect was affected
 	if affectedSources.subAspect then
-		local subAspect = self.centralData.aspects:getSubAspect()
 		local subAspectPassives = self.centralData.aspects:getSubAspectPassives()
-
 		if subAspectPassives then
 			self:_applyModifiers(newCalculatedStats, subAspectPassives, true)
 		end
@@ -111,7 +113,7 @@ function StatsManager:recalculateAffectedStats(affectedSources)
 	-- Update current stats
 	self.currentStats = newCalculatedStats
 
-	-- Update dependent values
+	-- Update dependent values (make sure all your new max stats are included)
 	self.maxHealth = self.currentStats.maxHealth
 	self.maxStamina = self.currentStats.maxStamina
 
@@ -134,7 +136,7 @@ function StatsManager:recalculateAffectedStats(affectedSources)
 	return self.currentStats
 end
 
--- Full recalculation of all stats
+-- Full recalculation of all stats (same as before)
 function StatsManager:recalculateAllStats()
 	return self:recalculateAffectedStats({
 		equipment = true,
@@ -143,14 +145,11 @@ function StatsManager:recalculateAllStats()
 	})
 end
 
--- Health management
+-- Health management (same as before)
 function StatsManager:updateHealth(amount)
 	local oldHealth = self.health
 	self.health = math.clamp(self.health + amount, 0, self.maxHealth)
-
-	-- Fire health changed event
 	self.centralData.Events.HealthChanged:Fire(self.playerId, oldHealth, self.health)
-
 	return self.health
 end
 
@@ -158,14 +157,11 @@ function StatsManager:setHealth(value)
 	return self:updateHealth(value - self.health)
 end
 
--- Stamina management
+-- Stamina management (same as before)
 function StatsManager:updateStamina(amount)
 	local oldStamina = self.stamina
 	self.stamina = math.clamp(self.stamina + amount, 0, self.maxStamina)
-
-	-- Fire stamina changed event
 	self.centralData.Events.StaminaChanged:Fire(self.playerId, oldStamina, self.stamina)
-
 	return self.stamina
 end
 
@@ -173,21 +169,16 @@ function StatsManager:setStamina(value)
 	return self:updateStamina(value - self.stamina)
 end
 
--- Overhealth management
+-- Overhealth management (same as before)
 function StatsManager:setOverhealth(value)
 	local oldValue = self.overhealth
 	self.overhealth = math.max(0, value)
-
-	-- Update overhealth state
 	self.centralData.states:setState("hasOverhealth", self.overhealth > 0)
-
-	-- Fire event
 	self.centralData.Events.OverhealthChanged:Fire(self.playerId, oldValue, self.overhealth)
-
 	return self.overhealth
 end
 
--- Base stat management
+-- Base stat management (modified to include all new stats)
 function StatsManager:setBaseStat(statName, value)
 	if self.baseStats[statName] == nil then
 		warn("Invalid stat name:", statName)
@@ -210,9 +201,42 @@ function StatsManager:getCurrentStat(statName)
 	return self.currentStats[statName]
 end
 
--- Reset stats
+-- Regeneration (new functions)
+function StatsManager:regenerateHealth(deltaTime)
+	local regenAmount = self.currentStats.healthRegenRate * deltaTime
+	if regenAmount ~= 0 then
+		self:updateHealth(regenAmount)
+	end
+end
+
+function StatsManager:regenerateStamina(deltaTime)
+	local regenAmount = self.currentStats.staminaRegenRate * deltaTime
+	if regenAmount ~= 0 then
+		self:updateStamina(regenAmount)
+	end
+end
+
+-- Get Stamina Burst (new function)
+function StatsManager:getStaminaBurstAmount()
+	return self.currentStats.staminaBurst
+end
+
+-- Magic Proficiency (new function)
+function StatsManager:getMagicProficiency()
+	return self.currentStats.magicProficiency
+end
+
+function StatsManager:setMagicProficiency(value)
+	local oldValue = self.currentStats.magicProficiency
+	self.baseStats.magicProficiency = value -- Update base stat as well for saving
+	self:recalculateAllStats() -- Recalculate to update current stat
+	-- You might want to fire a specific event for magic proficiency change if needed
+	return true
+end
+
+-- Reset stats (modified to include all new stats)
 function StatsManager:reset(fullReset)
-	-- Reset health and stamina to max
+	-- Reset health, stamina, and overhealth to max/default
 	self.health = self.maxHealth
 	self.stamina = self.maxStamina
 	self.overhealth = 0
@@ -233,15 +257,12 @@ function StatsManager:reset(fullReset)
 	self.centralData.Events.HealthChanged:Fire(self.playerId, 0, self.health)
 	self.centralData.Events.StaminaChanged:Fire(self.playerId, 0, self.stamina)
 	self.centralData.Events.OverhealthChanged:Fire(self.playerId, 0, 0)
-
-	if fullReset then
-		self.centralData.Events.StatsModified:Fire(self.playerId, {}, self.currentStats)
-	end
+	self.centralData.Events.StatsModified:Fire(self.playerId, {}, self.currentStats) -- Always fire on reset
 
 	return true
 end
 
--- Serialization
+-- Serialization (modified to include all new stats)
 function StatsManager:serialize()
 	return {
 		health = self.health,
@@ -254,7 +275,7 @@ function StatsManager:serialize()
 	}
 end
 
--- Deserialization
+-- Deserialization (modified to include all new stats)
 function StatsManager:deserialize(data)
 	if not data then return false end
 
@@ -276,6 +297,10 @@ function StatsManager:deserialize(data)
 			self.currentStats[statName] = value
 		end
 	end
+
+	-- After loading, ensure dependent values are updated
+	self.maxHealth = self.currentStats.maxHealth
+	self.maxStamina = self.currentStats.maxStamina
 
 	return true
 end
